@@ -2,7 +2,6 @@ package books
 
 import (
 	"errors"
-	"fmt"
 	"go-mongo/config"
 	"go.mongodb.org/mongo-driver/bson"
 	"net/http"
@@ -33,23 +32,23 @@ func AllBooks(r *http.Request) ([]Book, error) {
 
 func OneBook(r *http.Request) (Book, error) {
 	ctx := r.Context()
-	bk := Book{}
+	var bk Book
 	isbn := r.FormValue("isbn")
 	if isbn == "" {
 		return bk, errors.New("400. Bad Request.")
 	}
-
 	c, err := config.Books.Find(ctx, bson.M{"Isbn": isbn})
-	fmt.Println(c, err)
 	if err != nil {
 		return bk, err
 	}
-	if err = c.Decode(&bk); err != nil {
-		fmt.Println(bk, err)
+	var bks []Book
+	if err = c.All(ctx, &bks); err != nil {
 		return bk, err
 	}
-
-	return bk, nil
+	if len(bks) < 1 {
+		return bk, nil
+	}
+	return bks[0], nil
 }
 
 func PutBook(r *http.Request) (Book, error) {
@@ -102,7 +101,9 @@ func UpdateBook(r *http.Request) (Book, error) {
 	bk.Price = float32(f64)
 
 	// insert values
-	_, err = config.Books.InsertOne(ctx, bson.M{"Isbn": bk.Isbn, "Title": bk.Title, "Author": bk.Author, "Price": bk.Price})
+	filter := bson.D{{"Isbn", bk.Isbn}}
+	update := bson.D{{"$set", bson.M{"Title": bk.Title, "Author": bk.Author, "Price": bk.Price}}}
+	_, err = config.Books.UpdateOne(ctx, filter, update)
 	if err != nil {
 		return bk, err
 	}
